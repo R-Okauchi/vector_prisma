@@ -1,0 +1,31 @@
+Metadata-Version: 2.1
+Name: vector-prisma
+Version: 0.0.0
+Summary: Prisma Client Python with pgvector
+Home-page: https://github.com/R-Okauchi/vector-prisma.git
+Author: R-Okauchi
+Author-email: 
+Maintainer: R-Okauchi
+License: APACHE
+Keywords: orm,mysql,typing,prisma,sqlite,database,postgresql,vector
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Typing :: Typed
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Database :: Database Engines/Servers
+Classifier: Topic :: Database :: Front-Ends
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: MacOS
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: Microsoft :: Windows
+Requires-Python: >=3.8.0
+Description-Content-Type: text/markdown
+Requires-Dist: prisma>=0.15.0
+
+vector prisma

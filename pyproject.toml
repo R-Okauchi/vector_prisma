@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "vector-prisma"
+version = "0.1.0"
+description = ""
+authors = ["R-Okauchi <141081147+R-Okauchi@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "~3.10"
+prisma = "^0.15.0"
+
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

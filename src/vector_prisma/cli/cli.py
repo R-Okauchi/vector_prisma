@@ -26,6 +26,7 @@ def main(
     use_handler: bool = True,
     do_cleanup: bool = True,
 ) -> NoReturn:
+    print("Vector Prisma")
     if args is None:
         args = sys.argv
 

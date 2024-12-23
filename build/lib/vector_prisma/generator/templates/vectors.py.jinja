@@ -13,4 +13,5 @@ class {{ model.name }}Vector(VectorBase):
     Vector = Annotated[list[float], Len(VECTOR_DIM, VECTOR_DIM)]
         {% endif %}
     {% endfor %}
+
 {% endfor %}

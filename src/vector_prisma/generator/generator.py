@@ -6,11 +6,11 @@ import prisma
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 GENERATE_FILES = {
-    "types.py.jinja": Path(__file__).parent.parent.joinpath("types_test.py"),
-    "vectors.py.jinja": Path(__file__).parent.parent.joinpath("vectors_test.py"),
-    "actions.py.jinja": Path(__file__).parent.parent.joinpath("actions_test.py"),
-    "client.py.jinja": Path(__file__).parent.parent.joinpath("client_test.py"),
-    "models.py.jinja": Path(__file__).parent.parent.joinpath("models_test.py"),
+    "types.py.jinja": Path(__file__).parent.parent.joinpath("types.py"),
+    "vectors.py.jinja": Path(__file__).parent.parent.joinpath("vectors.py"),
+    "actions.py.jinja": Path(__file__).parent.parent.joinpath("actions.py"),
+    "client.py.jinja": Path(__file__).parent.parent.joinpath("client.py"),
+    "models.py.jinja": Path(__file__).parent.parent.joinpath("models.py"),
 }
 
 DEFAULT_ENV = Environment(

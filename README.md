@@ -1,1 +1,120 @@
-vector prisma
+# vector-prisma
+prismaのpgvector拡張をパラメトリックに扱うためのラッパーモジュール
+
+## 使用方法
+pythonモジュールで利用できる
+
+（例）
+
+```bash
+poetry add git+https://github.com/R-Okauchi/vector-prisma.git
+```
+
+### ファイルの生成
+
+schema.prismaが存在するディレクトリにおいて
+
+```jsx
+vector-prisma generate
+```
+
+### clientのスタート
+
+```python
+from vector_prisma import VectorPrisma
+
+prisma = VectorPrisma()
+```
+
+これで他のテーブルの操作も元々のprismaのメソッドで行える
+
+### 各メソッドの使い方例
+
+baseのmodelとCreateInput, UpdateInput, UpsertInputあたりはvector_prisma/typesからインポートする必要がある
+
+```python
+from prisma.types import NetisEmbeddingWhereInput
+from vector_prisma import VectorPrisma
+from vector_prisma.models import NetisEmbedding
+from vector_prisma.types import (
+    NetisEmbeddingCreateInput,
+    NetisEmbeddingUpsertInput,
+)
+
+from models.netis_embedding import NetisEmbeddingCreate
+
+async def create_Netis_embedding(
+    prisma: VectorPrisma, embedding: NetisEmbeddingCreate
+) -> NetisEmbedding:
+    data = NetisEmbeddingCreateInput(embedding.model_dump())
+    return await prisma.netisembedding_vec.create(data)
+
+async def read_Netis_embeddings(
+    prisma: VectorPrisma, filter: NetisEmbeddingWhereInput = {}
+) -> list[NetisEmbedding]:
+    return await prisma.netisembedding_vec.find_many(where=filter)
+
+async def bulk_upsert_Netis_embeddings(
+    prisma: VectorPrisma, data_list: list[NetisEmbeddingCreate] = []
+) -> dict[str, int]:
+    async with prisma.tx_vec() as transaction:
+        results = []
+        for data in data_list:
+            result = await transaction.netisembedding_vec.upsert(
+                where={"netis_id": str(data.netis_id)},
+                data=NetisEmbeddingUpsertInput(data.model_dump()),
+            )
+            results.append(result)
+
+    return {"count": len(results)}
+
+```
+
+### 現状対応しているメソッド
+
+- create
+- update
+- upsert
+- update
+- find_many
+- delete
+- retrieve
+    - ベクトル配列をresponseに含んだ近似最近傍探索
+- retrieve_slim
+    - ベクトル配列をresponseに含まない近似最近傍探索
+
+
+## retrievalメソッド
+
+以下のように、検索クエリのembeddingを渡すことで近似最近傍探索ができる。
+
+探索用の距離関数には以下が用意されている。
+
+- L1_DISTANCE（マンハッタン距離）
+- L2_DISTANCE（ユークリッド距離）
+- INNER_PRODUCT（ベクトル間内積）
+- COSINE_DISTANCE（コサイン距離）
+
+```python
+from vector_prisma import VectorPrisma
+from vector_prisma.operations import SearchMetric
+from vector_prisma.vectors import OutlineEmbeddingVector
+
+async def retrieve_nn_outlines_slim(
+    prisma: VectorPrisma,
+    query_vec: OutlineEmbeddingVector.Vector,
+    top_k: int,
+    metric: SearchMetric,
+) -> list[tuple[str, float]]:
+    """outline id と，distanceだけ返す"""
+    records = await prisma.outlineembedding_vec.retrieve_slim(
+        query_vec, "vec", top_k, metric
+    )
+
+    results = []
+
+    for record in records:
+        results.append((record.outline_id, record.distance))
+    
+    return results
+```

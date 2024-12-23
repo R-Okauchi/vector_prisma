@@ -1,7 +1,7 @@
-
+from enum import Enum
 
 from .vector_type import Vector
-from enum import Enum
+
 
 class SearchMetric(str, Enum):
     L1_DISTANCE = "L1_DISTANCE"

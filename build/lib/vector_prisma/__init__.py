@@ -1,16 +1,20 @@
-__version__ = '0.0.0'
+__version__ = "0.0.0"
 
 from typing import TYPE_CHECKING
 
 from prisma import errors as errors
-from prisma.utils import setup_logging
-from prisma._types import PrismaMethod as PrismaMethod
 from prisma._config import config as config
 from prisma._metrics import (
     Metric as Metric,
-    Metrics as Metrics,
+)
+from prisma._metrics import (
     MetricHistogram as MetricHistogram,
 )
+from prisma._metrics import (
+    Metrics as Metrics,
+)
+from prisma._types import PrismaMethod as PrismaMethod
+from prisma.utils import setup_logging
 from prisma.validator import *
 
 # the import ordering is important here because
@@ -39,11 +43,11 @@ except ModuleNotFoundError:
                 return globals()[name]
             except KeyError as err:
                 # TODO: support checking for 'models' here too
-                if name in {'Prisma', 'Client'}:
+                if name in {"Prisma", "Client"}:
                     # TODO: remove this frame from the stack trace
                     raise RuntimeError(
                         "The Client hasn't been generated yet, "
-                        'you must run `vector-prisma generate` before you can use the client.\n'
+                        "you must run `vector-prisma generate` before you can use the client.\n"
                     ) from None
 
                 # leaves handling of this potential error to Python as per PEP 562

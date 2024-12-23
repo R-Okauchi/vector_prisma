@@ -1,7 +1,5 @@
 from enum import Enum
 
-from .vector_type import Vector
-
 
 class SearchMetric(str, Enum):
     L1_DISTANCE = "L1_DISTANCE"
@@ -11,7 +9,7 @@ class SearchMetric(str, Enum):
 
 
 def get_pgvector_operation(
-    column_name: str, query_vec: Vector, metric: SearchMetric
+    column_name: str, query_vec: list[float], metric: SearchMetric
 ) -> str:
     vec_str = ", ".join(map(str, query_vec))
     op = ""

@@ -6,7 +6,7 @@ from typing import List, Iterator, NoReturn, Optional
 
 import click
 
-from prisma.cli import prisma
+from . import vector_prisma
 from prisma import _sync_http as http
 from prisma.cli.utils import error
 from prisma.utils import DEBUG
@@ -40,7 +40,7 @@ def main(
                 cli.main(args[2:], prog_name='vector_prisma py')
             else:
                 print("args[1] != 'py'")
-                sys.exit(prisma.run(args[1:]))
+                sys.exit(vector_prisma.run(args[1:]))
                 print("Vector Prisma does not support database operations.")
         else:
             print("len(args) <= 1")

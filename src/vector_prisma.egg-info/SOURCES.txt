@@ -16,6 +16,7 @@ src/vector_prisma.egg-info/requires.txt
 src/vector_prisma.egg-info/top_level.txt
 src/vector_prisma/cli/__init__.py
 src/vector_prisma/cli/cli.py
+src/vector_prisma/cli/vector_prisma.py
 src/vector_prisma/generator/__init__.py
 src/vector_prisma/generator/generator.py
 src/vector_prisma/generator/templates/partials.py.jinja

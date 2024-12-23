@@ -6,7 +6,7 @@ from typing import List, Iterator, NoReturn, Optional
 
 import click
 
-from prisma.cli import prisma
+from . import vector_prisma
 from prisma import _sync_http as http
 from prisma.cli.utils import error
 from prisma.utils import DEBUG
@@ -26,19 +26,26 @@ def main(
     use_handler: bool = True,
     do_cleanup: bool = True,
 ) -> NoReturn:
+    print("Vector Prisma")
     if args is None:
         args = sys.argv
+    print(args)
 
     with setup_logging(use_handler), cleanup(do_cleanup):
         if len(args) > 1:
+            print("len(args) > 1")
             if args[1] == 'py':
+                print("args[1] == 'py'")
                 # Modify the prog_name to 'vector_prisma py'
                 cli.main(args[2:], prog_name='vector_prisma py')
             else:
-                sys.exit(prisma.run(args[1:]))
+                print("args[1] != 'py'")
+                sys.exit(vector_prisma.run(args[1:]))
                 print("Vector Prisma does not support database operations.")
         else:
+            print("len(args) <= 1")
             if not os.environ.get('PRISMA_GENERATOR_INVOCATION'):
+                print("not os.environ.get('PRISMA_GENERATOR_INVOCATION')")
                 error(
                     'This command is only intended to be invoked internally. ' 'Please run the following instead:',
                     exit_=False,
@@ -47,6 +54,7 @@ def main(
                 click.echo('e.g.')
                 click.echo('vector_prisma generate')
                 sys.exit(1)
+            print("os.environ.get('PRISMA_GENERATOR_INVOCATION')")
             Generator.invoke()
 
     # mypy does not recognise sys.exit as a NoReturn for some reason

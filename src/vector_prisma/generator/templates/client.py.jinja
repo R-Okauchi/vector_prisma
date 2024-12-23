@@ -1,0 +1,102 @@
+from datetime import timedelta
+from pathlib import Path
+from typing import Union
+
+import prisma
+from prisma import ENGINE_TYPE, SCHEMA_PATH, Prisma
+from prisma._constants import (
+    DEFAULT_CONNECT_TIMEOUT,
+    DEFAULT_TX_MAX_WAIT,
+    DEFAULT_TX_TIMEOUT,
+)
+from prisma._registry import (
+    register as register,
+)
+from prisma._transactions import (
+    AsyncTransactionManager as PrismaAsyncTransactionManager,
+)
+from prisma.metadata import PRISMA_MODELS, RELATIONAL_FIELD_MAPPINGS
+from prisma.types import DatasourceOverride, HttpConfig
+
+from . import actions, models
+
+LiteralString = str
+
+
+__all__ = (
+    "VectorPrisma",
+    "Client",
+)
+
+PACKAGED_SCHEMA_PATH = Path(prisma.__file__).parent.joinpath("schema.prisma")
+VECTOR_JSON_SCHEMA_PATH = Path(__file__).parent.joinpath("vector_schema.json")
+
+
+
+class VectorPrisma(Prisma):
+    {% for model in datamodel.models %}
+    {{ model.name | lower }}_vec: "actions.{{ model.name }}Actions[models.{{ model.name }}, models.{{ model.name }}TV, models.{{ model.name }}NNResult]"
+    {% endfor %}
+
+    __slots__ = (
+        {% for model in datamodel.models %}
+        "{{ model.name | lower }}_vec",
+        {% endfor %}
+    )
+
+    def __init__(
+        self,
+        *,
+        use_dotenv: bool = True,
+        log_queries: bool = False,
+        auto_register: bool = False,
+        datasource: DatasourceOverride | None = None,
+        connect_timeout: int | timedelta = DEFAULT_CONNECT_TIMEOUT,
+        http: HttpConfig | None = None,
+    ) -> None:
+        super().__init__(
+            http=http,
+            use_dotenv=use_dotenv,
+            log_queries=log_queries,
+            datasource=datasource,
+            connect_timeout=connect_timeout,
+        )
+        self._set_generated_properties(
+            schema_path=SCHEMA_PATH,
+            engine_type=ENGINE_TYPE,
+            prisma_models=PRISMA_MODELS,
+            packaged_schema_path=PACKAGED_SCHEMA_PATH,
+            relational_field_mappings=RELATIONAL_FIELD_MAPPINGS,
+            preview_features=set(["postgresqlExtensions"]),
+            active_provider="postgresql",
+            default_datasource_name="db",
+        )
+
+        {% for model in datamodel.models %}
+        self.{{ model.name | lower }}_vec = actions.{{ model.name }}Actions(
+            self,
+            models.{{ model.name }},
+            models.{{ model.name }}TV,
+            models.{{ model.name }}NNResult,
+        )
+        {% endfor %}
+        if auto_register:
+            register(self)
+
+    def tx_vec(
+        self,
+        *,
+        max_wait: Union[int, timedelta] = DEFAULT_TX_MAX_WAIT,
+        timeout: Union[int, timedelta] = DEFAULT_TX_TIMEOUT,
+    ) -> "TransactionManager":
+        return TransactionManager(
+            client=self,
+            max_wait=max_wait,
+            timeout=timeout,
+        )
+
+
+TransactionManager = PrismaAsyncTransactionManager[VectorPrisma]
+
+
+Client = VectorPrisma

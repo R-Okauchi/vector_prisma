@@ -1,7 +1,7 @@
-
+from enum import Enum
 
 from .vector_type import Vector
-from enum import Enum
+
 
 class SearchMetric(str, Enum):
     L1_DISTANCE = "L1_DISTANCE"
@@ -30,3 +30,10 @@ def get_pgvector_operation(
         raise ValueError(f"Invalid distance type: {metric}")
 
     return f"{column_name} {op} '[{vec_str}]'"
+
+
+def vec_str2vec(vec_str: str) -> list[float]:
+    """
+    文字列の形式 例"[1.0, 2.0, 3.0]" をfloatリスト [1.0, 2.0, 3.0] に変換する関数
+    """
+    return list(map(float, vec_str[1:-1].split(",")))

@@ -21,4 +21,5 @@ class {{ model.name }}NNResult(models.{{ model.name }}):
 class {{ model.name }}NNResultTV(models.{{ model.name }}):
     vec: Optional[str]
     distance: float
+
 {% endfor %}

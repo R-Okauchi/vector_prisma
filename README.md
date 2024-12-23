@@ -33,36 +33,36 @@ prisma = VectorPrisma()
 baseのmodelとCreateInput, UpdateInput, UpsertInputあたりはvector_prisma/typesからインポートする必要がある
 
 ```python
-from prisma.types import NetisEmbeddingWhereInput
+from prisma.types import UserEmbeddingWhereInput
 from vector_prisma import VectorPrisma
-from vector_prisma.models import NetisEmbedding
+from vector_prisma.models import UserEmbedding
 from vector_prisma.types import (
-    NetisEmbeddingCreateInput,
-    NetisEmbeddingUpsertInput,
+    UserEmbeddingCreateInput,
+    UserEmbeddingUpsertInput,
 )
 
-from models.netis_embedding import NetisEmbeddingCreate
+from models.User_embedding import UserEmbeddingCreate
 
-async def create_Netis_embedding(
-    prisma: VectorPrisma, embedding: NetisEmbeddingCreate
-) -> NetisEmbedding:
-    data = NetisEmbeddingCreateInput(embedding.model_dump())
-    return await prisma.netisembedding_vec.create(data)
+async def create_user_embedding(
+    prisma: VectorPrisma, embedding: UserEmbeddingCreate
+) -> UserEmbedding:
+    data = UserEmbeddingCreateInput(embedding.model_dump())
+    return await prisma.userembedding_vec.create(data)
 
-async def read_Netis_embeddings(
-    prisma: VectorPrisma, filter: NetisEmbeddingWhereInput = {}
-) -> list[NetisEmbedding]:
-    return await prisma.netisembedding_vec.find_many(where=filter)
+async def read_user_embeddings(
+    prisma: VectorPrisma, filter: UserEmbeddingWhereInput = {}
+) -> list[UserEmbedding]:
+    return await prisma.userembedding_vec.find_many(where=filter)
 
-async def bulk_upsert_Netis_embeddings(
-    prisma: VectorPrisma, data_list: list[NetisEmbeddingCreate] = []
+async def bulk_upsert_User_embeddings(
+    prisma: VectorPrisma, data_list: list[UserEmbeddingCreate] = []
 ) -> dict[str, int]:
     async with prisma.tx_vec() as transaction:
         results = []
         for data in data_list:
-            result = await transaction.netisembedding_vec.upsert(
-                where={"netis_id": str(data.netis_id)},
-                data=NetisEmbeddingUpsertInput(data.model_dump()),
+            result = await transaction.userembedding_vec.upsert(
+                where={"user_id": str(data.user_id)},
+                data=UserEmbeddingUpsertInput(data.model_dump()),
             )
             results.append(result)
 
@@ -98,23 +98,23 @@ async def bulk_upsert_Netis_embeddings(
 ```python
 from vector_prisma import VectorPrisma
 from vector_prisma.operations import SearchMetric
-from vector_prisma.vectors import OutlineEmbeddingVector
+from vector_prisma.vectors import UserEmbeddingVector
 
-async def retrieve_nn_outlines_slim(
+async def retrieve_nn_Users_slim(
     prisma: VectorPrisma,
-    query_vec: OutlineEmbeddingVector.Vector,
+    query_vec: UserEmbeddingVector.Vector,
     top_k: int,
     metric: SearchMetric,
 ) -> list[tuple[str, float]]:
-    """outline id と，distanceだけ返す"""
-    records = await prisma.outlineembedding_vec.retrieve_slim(
+    """user id と，distanceだけ返す"""
+    records = await prisma.userembedding_vec.retrieve_slim(
         query_vec, "vec", top_k, metric
     )
 
     results = []
 
     for record in records:
-        results.append((record.outline_id, record.distance))
+        results.append((record.user_id, record.distance))
     
     return results
 ```

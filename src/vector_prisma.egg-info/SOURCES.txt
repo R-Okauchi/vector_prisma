@@ -3,10 +3,9 @@ pyproject.toml
 setup.py
 src/vector_prisma/__init__.py
 src/vector_prisma/__main__.py
-src/vector_prisma/models.py
 src/vector_prisma/operations.py
 src/vector_prisma/queries.py
-src/vector_prisma/vector_type.py
+src/vector_prisma/vector_base.py
 src/vector_prisma.egg-info/PKG-INFO
 src/vector_prisma.egg-info/SOURCES.txt
 src/vector_prisma.egg-info/dependency_links.txt
@@ -16,8 +15,10 @@ src/vector_prisma.egg-info/requires.txt
 src/vector_prisma.egg-info/top_level.txt
 src/vector_prisma/cli/__init__.py
 src/vector_prisma/cli/cli.py
-src/vector_prisma/cli/vector_prisma.py
 src/vector_prisma/generator/__init__.py
 src/vector_prisma/generator/generator.py
-src/vector_prisma/generator/templates/partials.py.jinja
+src/vector_prisma/generator/templates/actions.py.jinja
+src/vector_prisma/generator/templates/client.py.jinja
+src/vector_prisma/generator/templates/models.py.jinja
 src/vector_prisma/generator/templates/types.py.jinja
+src/vector_prisma/generator/templates/vectors.py.jinja

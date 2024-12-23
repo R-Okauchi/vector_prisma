@@ -2,33 +2,25 @@ from builtins import str as _str
 from prisma import types
 from typing_extensions import TypedDict
 
-from .vector_type import Vector
+from . import vectors
 
-{% for model in dmmf.datamodel.models %}
+{% for model in datamodel.models %}
 # {{ model.name }} CreateInput
-class {{ model.name }}CreateInput(TypedDict, total=False):
+class {{ model.name }}CreateInput(types.{{ model.name }}CreateInput):
     """Required arguments to the {{ model.name }} create method"""
     {% for field in model.all_fields %}
-        {%- if field.type == 'Unsupported' %}
-    {{ field.name }}: Vector  # Custom type for unsupported: {{ field.unsupported_type }}
-        {%- elif field.is_relation -%}
-    {{ field.name }}: 'types.{{ field.relation_name }}CreateNestedWithoutRelationsInput'
-        {%- elif field.required_on_create -%}
-    {{ field.name }}: {{ field.create_input_type }}
+        {%- if 'Unsupported' in field.type and 'vector' in field.type %}
+{{'    '}}{{ field.name }}: vectors.{{ model.name }}Vector.Vector
         {% endif %}
     {% endfor %}
 
 
 # {{ model.name }} UpdateInput
-class {{ model.name }}UpdateInput(TypedDict, total=False):
-    """Optional arguments for updating a record"""
+class {{ model.name }}UpdateInput(types.{{ model.name }}UpdateInput):
+    """Required arguments to the {{ model.name }} update method"""
     {% for field in model.all_fields %}
-        {%- if field.type == 'Unsupported' %}
-    {{ field.name }}: Vector  # Custom type for unsupported: {{ field.unsupported_type }}
-        {%- elif field.is_relation -%}
-    {{ field.name }}: 'types.{{ field.relation_name }}UpdateOneWithoutRelationsInput'
-        {%- elif not field.is_read_only -%}
-    {{ field.name }}: {{ field.get_update_input_type() }}
+        {%- if 'Unsupported' in field.type %}
+{{'    '}}{{ field.name }}: vectors.{{ model.name }}Vector.Vector
         {% endif %}
     {% endfor %}
 
@@ -38,4 +30,6 @@ class {{ model.name }}UpsertInput(TypedDict):
     """Input for upserting {{ model.name }}"""
     create: '{{ model.name }}CreateInput'
     update: '{{ model.name }}UpdateInput'
+
+
 {% endfor %}

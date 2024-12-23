@@ -1,49 +1,17 @@
-import json
-import logging
-import os
-import sys
-import traceback
-from abc import ABC, abstractmethod
-from contextvars import ContextVar
+import re
 from pathlib import Path
-from typing import Any, Dict, Generic, List, Optional, Type, cast
+from typing import Any
 
+import prisma
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
-from prisma._compat import cached_property, model_json, model_parse
-from prisma._types import BaseModelT, InheritsGeneric, get_args
-from prisma.generator import jsonrpc
-from prisma.generator.errors import PartialTypeGeneratorError
-from prisma.generator.filters import quote
-from prisma.generator.jsonrpc import Manifest
-from prisma.generator.models import DefaultData, PythonData
-from prisma.generator.types import PartialModel
-from prisma.generator.utils import (
-    copy_tree,
-    is_same_path,
-    resolve_template_path,
-)
-from prisma.utils import DEBUG, DEBUG_GENERATOR
-from pydantic import BaseModel, ValidationError
-from typing_extensions import override
 
-from .. import __version__
-
-__all__ = (
-    "BASE_PACKAGE_DIR",
-    "GenericGenerator",
-    "BaseGenerator",
-    "Generator",
-    "render_template",
-    "cleanup_templates",
-    "partial_models_ctx",
-)
-
-log: logging.Logger = logging.getLogger(__name__)
-BASE_PACKAGE_DIR = Path(__file__).parent.parent
-GENERIC_GENERATOR_NAME = "vector-prisma.generator.generator.GenericGenerator"
-
-# set of templates that should be rendered after every other template
-DEFERRED_TEMPLATES = {"partials.py.jinja"}
+GENERATE_FILES = {
+    "types.py.jinja": Path(__file__).parent.parent.joinpath("types_test.py"),
+    "vectors.py.jinja": Path(__file__).parent.parent.joinpath("vectors_test.py"),
+    "actions.py.jinja": Path(__file__).parent.parent.joinpath("actions_test.py"),
+    "client.py.jinja": Path(__file__).parent.parent.joinpath("client_test.py"),
+    "models.py.jinja": Path(__file__).parent.parent.joinpath("models_test.py"),
+}
 
 DEFAULT_ENV = Environment(
     trim_blocks=True,
@@ -52,265 +20,120 @@ DEFAULT_ENV = Environment(
     undefined=StrictUndefined,
 )
 
-# the type: ignore is required because Jinja2 filters are not typed
-# and Pyright infers the type from the default builtin filters which
-# results in an overly restrictive type
-DEFAULT_ENV.filters["quote"] = quote  # pyright: ignore
 
-partial_models_ctx: ContextVar[List[PartialModel]] = ContextVar(
-    "partial_models_ctx", default=[]
-)
+class Generator:
+    def __init__(self):
+        self.schema_path = Path(prisma.__file__).parent.joinpath("schema.prisma")
+        self.env = DEFAULT_ENV
 
+    @staticmethod
+    def regex_search(value, pattern):
+        match = re.search(pattern, value)
+        return match.groups() if match else []
 
-class GenericGenerator(ABC, Generic[BaseModelT]):
-    @abstractmethod
-    def get_manifest(self) -> Manifest:
-        """Get the metadata for this generator
+    def read_schema(self) -> str:
+        with open(self.schema_path, "r", encoding="utf-8") as f:
+            return f.read()
 
-        This is used by prisma to display the post-generate message e.g.
+    def extract_tables_with_vector_type(
+        self, schema: str
+    ) -> list[dict[str, list[dict[str, str | Any | bool | None]] | str | Any]]:
+        tables = []
+        table_pattern = re.compile(r"model (\w+) \{(.*?)\}", re.S)
+        field_pattern = re.compile(r"(\w+)\s+([^\s]+)(.*)")
 
-        ✔ Generated Vector Prisma Client Python to ./.venv/lib/python3.9/site-packages/vector-prisma
-        """
-        ...
+        for table_match in table_pattern.finditer(schema):
+            table_name = table_match.group(1)
+            table_body = table_match.group(2)
 
-    @abstractmethod
-    def generate(self, data: BaseModelT) -> None: ...
+            fields = []
+            has_vector_field = False
+            seen_fields = set()
+            for field_match in field_pattern.finditer(table_body):
+                field_name = field_match.group(1)
+                field_type = field_match.group(2)
+                attributes = field_match.group(3).strip()
 
-    @classmethod
-    def invoke(cls) -> None:
-        """Shorthand for calling BaseGenerator().run()"""
-        generator = cls()
-        generator.run()
-
-    def run(self) -> None:
-        """Run the generation loop
-
-        This can only be called from a prisma generation, e.g.
-
-        ```prisma
-        generator client {
-            provider = "python generator.py"
-        }
-        ```
-        """
-        if not os.environ.get("PRISMA_GENERATOR_INVOCATION"):
-            raise RuntimeError(
-                "Attempted to invoke a generator outside of Prisma generation"
-            )
-
-        request = None
-        try:
-            while True:
-                line = jsonrpc.readline()
-                if line is None:
-                    log.debug("Prisma invocation ending")
-                    break
-
-                request = jsonrpc.parse(line)
-                self._on_request(request)
-        except Exception as exc:
-            if request is None:
-                raise exc from None
-
-            # We don't care about being overly verbose or printing potentially redundant data here
-            if DEBUG or DEBUG_GENERATOR:
-                traceback.print_exc()
-
-            # Do not include the full stack trace for pydantic validation errors as they are typically
-            # the fault of the user.
-            if isinstance(exc, ValidationError):
-                message = str(exc)
-            elif isinstance(exc, PartialTypeGeneratorError):
-                # TODO: remove our internal frame from this stack trace
-                message = (
-                    "An exception ocurred while running the partial type generator\n"
-                    + traceback.format_exc().strip()
-                )
-            else:
-                message = traceback.format_exc().strip()
-
-            response = jsonrpc.ErrorResponse(
-                id=request.id,
-                error={
-                    # code copied from https://github.com/prisma/prisma/blob/main/packages/generator-helper/src/generatorHandler.ts
-                    "code": -32000,
-                    "message": message,
-                    "data": {},
-                },
-            )
-            jsonrpc.reply(response)
-
-    def _on_request(self, request: jsonrpc.Request) -> None:
-        response = None
-        if request.method == "getManifest":
-            response = jsonrpc.SuccessResponse(
-                id=request.id,
-                result=dict(
-                    manifest=self.get_manifest(),
-                ),
-            )
-        elif request.method == "generate":
-            if request.params is None:  # pragma: no cover
-                raise RuntimeError("Prisma JSONRPC did not send data to generate.")
-
-            if DEBUG_GENERATOR:
-                _write_debug_data("params", json.dumps(request.params, indent=2))
-
-            data = model_parse(self.data_class, request.params)
-
-            if DEBUG_GENERATOR:
-                _write_debug_data("data", model_json(data, indent=2))
-
-            self.generate(data)
-            response = jsonrpc.SuccessResponse(id=request.id, result=None)
-        else:  # pragma: no cover
-            raise RuntimeError(f"JSON RPC received unexpected method: {request.method}")
-
-        jsonrpc.reply(response)
-
-    @cached_property
-    def data_class(self) -> Type[BaseModelT]:
-        """Return the BaseModel used to parse the Prisma DMMF"""
-
-        # we need to cast to object as otherwise pyright correctly marks the code as unreachable,
-        # this is because __orig_bases__ is not present in the typeshed stubs as it is
-        # intended to be for internal use only, however I could not find a method
-        # for resolving generic TypeVars for inherited subclasses without using it.
-        # please create an issue or pull request if you know of a solution.
-        cls = cast(object, self.__class__)
-        if not isinstance(cls, InheritsGeneric):
-            raise RuntimeError("Could not resolve generic type arguments.")
-
-        typ: Optional[Any] = None
-        for base in cls.__orig_bases__:
-            if base.__origin__ == GenericGenerator:
-                typ = base
-                break
-
-        if typ is None:  # pragma: no cover
-            raise RuntimeError(
-                "Could not find the GenericGenerator type;\n"
-                "This should never happen;\n"
-                f"Does {cls} inherit from {GenericGenerator} ?"
-            )
-
-        args = get_args(typ)
-        if not args:
-            raise RuntimeError(f"Could not resolve generic arguments from type: {typ}")
-
-        model = args[0]
-        if not issubclass(model, BaseModel):
-            raise TypeError(
-                f"Expected first generic type argument argument to be a subclass of {BaseModel} "
-                f"but got {model} instead."
-            )
-
-        # we know the type we have resolved is the same as the first generic argument
-        # passed to GenericGenerator, safe to cast
-        return cast(Type[BaseModelT], model)
-
-
-class BaseGenerator(GenericGenerator[DefaultData]):
-    pass
-
-
-class Generator(GenericGenerator[PythonData]):
-    @override
-    def __init_subclass__(cls, *args: Any, **kwargs: Any) -> None:
-        raise TypeError(
-            f"{Generator} cannot be subclassed, maybe you meant {BaseGenerator}?"
-        )
-
-    @override
-    def get_manifest(self) -> Manifest:
-        return Manifest(
-            name=f"Vector Prisma Client Python (v{__version__})",
-            default_output=BASE_PACKAGE_DIR,
-            requires_engines=[
-                "queryEngine",
-            ],
-        )
-
-    @override
-    def generate(self, data: PythonData) -> None:
-        config = data.generator.config
-        rootdir = Path(data.generator.output.value)
-        if not rootdir.exists():
-            rootdir.mkdir(parents=True, exist_ok=True)
-
-        if not is_same_path(BASE_PACKAGE_DIR, rootdir):
-            copy_tree(BASE_PACKAGE_DIR, rootdir)
-
-        # copy the Prisma Schema file used to generate the client to the
-        # package so we can use it to instantiate the query engine
-        packaged_schema = rootdir / "schema.prisma"
-        if not is_same_path(data.schema_path, packaged_schema):
-            packaged_schema.write_text(data.datamodel)
-
-        params = data.to_params()
-
-        try:
-            for name in DEFAULT_ENV.list_templates():
-                if (
-                    not name.endswith(".py.jinja")
-                    or name.startswith("_")
-                    or name in DEFERRED_TEMPLATES
-                ):
+                if field_name in seen_fields:
                     continue
+                seen_fields.add(field_name)
 
-                render_template(rootdir, name, params)
+                is_relation = (
+                    re.match(r"\w+", field_type)
+                    and not field_type.startswith("String")
+                    and not field_type.startswith("Int")
+                    and not field_type.startswith("Float")
+                    and not field_type.startswith("Boolean")
+                    and not field_type.startswith("DateTime")
+                    and not field_type.startswith("Unsupported")
+                )
 
-            if config.partial_type_generator:
-                log.debug("Generating partial types")
-                config.partial_type_generator.run()
+                fields.append(
+                    {
+                        "name": field_name,
+                        "type": field_type,
+                        "attributes": attributes,
+                        "relation": is_relation,
+                    }
+                )
 
-            params["partial_models"] = partial_models_ctx.get()
-            for name in DEFERRED_TEMPLATES:
-                render_template(rootdir, name, params)
-        except:
-            cleanup_templates(rootdir, env=DEFAULT_ENV)
-            raise
+                if "Unsupported" in field_type and "vector" in field_type:
+                    has_vector_field = True
 
-        log.debug("Finished generating Prisma Client Python")
+            if has_vector_field:
+                tables.append({"table": table_name, "fields": fields})
+
+        return tables
+
+    def transform_to_dmmf_format(self, json_data):
+        models = []
+        for table in json_data:
+            fields = []
+            for field in table["fields"]:
+                fields.append(
+                    {
+                        "name": field["name"],
+                        "type": field["type"],
+                        "is_relation": field["relation"],
+                        "is_required": True,
+                    }
+                )
+            models.append(
+                {
+                    "name": table["table"],
+                    "all_fields": fields,
+                }
+            )
+        return {"datamodel": {"models": models}}
+
+    def generate_files(
+        self, dmmf_data: dict[str, list[dict[str, list[dict[str, str]]]]]
+    ) -> None:
+        for template_path, file_path in GENERATE_FILES.items():
+            template = self.env.get_template(template_path)
+            content = template.render(**dmmf_data)
+
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+    @staticmethod
+    def save_output(file_paths: list[Path], content: str) -> None:
+        for file_path in file_paths:
+            try:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+            except Exception as e:
+                print(f"Error saving file: {file_path}")
+                print(e)
+
+    def invoke(self):
+        schema_content = self.read_schema()
+        tables_with_vectors = self.extract_tables_with_vector_type(schema_content)
+        dmmf_data = self.transform_to_dmmf_format(tables_with_vectors)
+        self.generate_files(dmmf_data)
+        print("Files generated and saved")
 
 
-def cleanup_templates(rootdir: Path, *, env: Optional[Environment] = None) -> None:
-    """Revert module to pre-generation state"""
-    if env is None:
-        env = DEFAULT_ENV
-
-    for name in env.list_templates():
-        file = resolve_template_path(rootdir=rootdir, name=name)
-        if file.exists():
-            log.debug("Removing rendered template at %s", file)
-            file.unlink()
-
-
-def render_template(
-    rootdir: Path,
-    name: str,
-    params: Dict[str, Any],
-    *,
-    env: Optional[Environment] = None,
-) -> None:
-    if env is None:
-        env = DEFAULT_ENV
-
-    template = env.get_template(name)
-    output = template.render(**params)
-
-    file = resolve_template_path(rootdir=rootdir, name=name)
-    if not file.parent.exists():
-        file.parent.mkdir(parents=True, exist_ok=True)
-
-    file.write_bytes(output.encode(sys.getdefaultencoding()))
-    log.debug("Rendered template to %s", file.absolute())
-
-
-def _write_debug_data(name: str, output: str) -> None:
-    path = Path(__file__).parent.joinpath(f"debug-{name}.json")
-
-    with path.open("w") as file:
-        file.write(output)
-
-    log.debug("Wrote generator %s to %s", name, path.absolute())
+if __name__ == "__main__":
+    generator = Generator()
+    generator.invoke()

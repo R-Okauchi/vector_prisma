@@ -1,0 +1,265 @@
+from __future__ import annotations
+
+import inspect
+import uuid
+from typing import (
+    TYPE_CHECKING,
+    Generic,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+)
+
+import prisma.types as prisma_types
+from prisma._compat import model_parse
+from psycopg2 import connect
+
+from . import queries, types, vectors
+from .operations import SearchMetric
+
+if TYPE_CHECKING:
+    from prisma.bases import _PrismaModel
+
+    from .client import VectorPrisma
+
+
+_PrismaModelT = TypeVar("_PrismaModelT", bound="_PrismaModel")
+_TextVectorPrismaModelT = TypeVar("_TextVectorPrismaModelT", bound="_PrismaModel")
+_NNPrismaModelT = TypeVar("_NNPrismaModelT", bound="_PrismaModel")
+
+
+def is_optional(field_type):
+    """Check if a field is Optional or None-like."""
+    origin = get_origin(field_type)
+    args = get_args(field_type)
+    return (origin is Union and type(None) in args) or field_type is None
+
+
+{% for model in datamodel.models %}
+class {{ model.name }}Actions(
+    Generic[_PrismaModelT, _TextVectorPrismaModelT, _NNPrismaModelT]
+):
+    __slots__ = (
+        "_client",
+        "_model",
+        "_vector_model",
+        "_nn_model",
+    )
+
+    def __init__(
+        self,
+        client: VectorPrisma,
+        model: Type[_PrismaModelT],
+        vector_model: Type[_TextVectorPrismaModelT],
+        nn_model: Type[_NNPrismaModelT],
+    ) -> None:
+        self._client = client
+        self._model = model
+        self._vector_model = vector_model
+        self._nn_model = nn_model
+
+    async def create(
+        self,
+        data: types.{{ model.name }}CreateInput,
+    ) -> _PrismaModelT:
+        table_name = self._model.__name__
+        uuid_columns, vector_columns = (
+            vectors.{{ model.name }}Vector.find_uuid_vector_columns(dict(data))
+        )
+        query, values = queries.QueryBuilder.build_insert_query(
+            table_name, dict(data), uuid_columns, vector_columns
+        )
+        values = [
+            str(value) if isinstance(value, uuid.UUID) else value for value in values
+        ]
+        conn = connect(self._client._default_datasource["url"])
+        query_str = query.as_string(conn)
+        resp = await self._client.query_raw(
+            query_str, *values, model=self._vector_model
+        )
+        resp_dict = resp[0].model_dump()
+        for vector_column in vector_columns:
+            resp_dict[vector_column] = eval(resp_dict[vector_column])
+        return model_parse(self._model, resp_dict)
+
+    async def update(
+        self,
+        where: prisma_types.{{ model.name }}WhereUniqueInput,
+        data: types.{{ model.name }}UpdateInput,
+    ) -> _PrismaModelT:
+        table_name = self._model.__name__
+        vector_columns = vectors.{{ model.name }}Vector.find_vector_columns_from_model(
+            self._model.__annotations__
+        )
+        query, values = queries.QueryBuilder.build_update_query(
+            table_name, dict(where), dict(data)
+        )
+        values = [
+            str(value) if isinstance(value, uuid.UUID) else value for value in values
+        ]
+        conn = connect(self._client._default_datasource["url"])
+        query_str = query.as_string(conn)
+        resp = await self._client.query_raw(
+            query_str, *values, model=self._vector_model
+        )
+        resp_dict = resp[0].model_dump()
+        for vector_column in vector_columns:
+            resp_dict[vector_column] = eval(resp_dict[vector_column])
+        return model_parse(self._model, resp_dict)
+
+    async def upsert(
+        self,
+        where: prisma_types.{{ model.name }}WhereUniqueInput,
+        data: types.{{ model.name }}UpsertInput,
+    ):
+        table_name = self._model.__name__
+        uuid_columns, vector_columns = (
+            vectors.{{ model.name }}Vector.find_uuid_vector_columns(dict(data))
+        )
+        query, values = queries.QueryBuilder.build_upsert_query(
+            table_name, dict(where), dict(data), uuid_columns, vector_columns
+        )
+        values = [
+            str(value) if isinstance(value, uuid.UUID) else value for value in values
+        ]
+        conn = connect(self._client._default_datasource["url"])
+        query_str = query.as_string(conn)
+        resp = await self._client.query_raw(
+            query_str, *values, model=self._vector_model
+        )
+        resp_dict = resp[0].model_dump()
+        resp_dict["vec"] = eval(resp_dict["vec"])
+        return model_parse(self._model, resp_dict)
+
+    async def find_many(
+        self,
+        where: Optional[prisma_types.{{ model.name }}WhereInput] = None,
+    ) -> list[_PrismaModelT]:
+        table_name = self._model.__name__
+        all_annotations = {}
+        for cls in inspect.getmro(self._model):
+            if hasattr(cls, "__annotations__"):
+                all_annotations.update(cls.__annotations__)
+
+        columns = [
+            name
+            for name, field in all_annotations.items()
+            if not is_optional(field)
+            and "__prisma_model__" not in name
+            and "model_config" not in name
+        ]
+
+        vector_columns = vectors.{{ model.name }}Vector.find_vector_columns_from_model(
+            all_annotations
+        )
+
+        query, values = queries.QueryBuilder.build_find_query(
+            table_name,
+            columns,
+            dict(where) if where else {},
+            vector_columns,
+        )
+        values = [
+            str(value) if isinstance(value, uuid.UUID) else value for value in values
+        ]
+
+        conn = connect(self._client._default_datasource["url"])
+        query_str = query.as_string(conn)
+        resp = await self._client.query_raw(
+            query_str, *values, model=self._vector_model
+        )
+        resp_dict_list = [item.model_dump() for item in resp]
+        for item in resp_dict_list:
+            for vector_column in vector_columns:
+                item[vector_column] = eval(item[vector_column])
+        return [model_parse(self._model, item) for item in resp_dict_list]
+
+    async def delete(
+        self,
+        where: prisma_types.{{ model.name }}WhereUniqueInput,
+    ) -> _PrismaModelT:
+        table_name = self._model.__name__
+        query, values = queries.QueryBuilder.build_delete_query(table_name, dict(where))
+        values = [
+            str(value) if isinstance(value, uuid.UUID) else value for value in values
+        ]
+        conn = connect(self._client._default_datasource["url"])
+        query_str = query.as_string(conn)
+        resp = await self._client.query_raw(
+            query_str, *values, model=self._vector_model
+        )
+        return model_parse(self._model, resp)
+
+    async def retrieve(
+        self,
+        query_vec: vectors.{{ model.name }}Vector.Vector,
+        vector_column: str,
+        top_k: int,
+        metric: SearchMetric,
+    ) -> list[_NNPrismaModelT]:
+        table_name = self._model.__name__
+        all_annotations = {}
+        for cls in inspect.getmro(self._model):
+            if hasattr(cls, "__annotations__"):
+                all_annotations.update(cls.__annotations__)
+
+        columns = [
+            name
+            for name, field in self._nn_model.model_fields.items()
+            if name not in all_annotations or not is_optional(all_annotations[name])
+        ]
+        query, values = queries.QueryBuilder.build_nn_query(
+            table_name, columns, query_vec, vector_column, top_k, metric
+        )
+        values = [
+            str(value) if isinstance(value, uuid.UUID) else value for value in values
+        ]
+        conn = connect(self._client._default_datasource["url"])
+        query_str = query.as_string(conn)
+        resp = await self._client.query_raw(
+            query_str, *values, model=self._vector_model
+        )
+
+        resp_dict_list = [item.model_dump() for item in resp]
+        for item in resp_dict_list:
+            item[vector_column] = eval(item[vector_column])
+
+        return [model_parse(self._nn_model, item) for item in resp]
+
+    async def retrieve_slim(
+        self,
+        query_vec: vectors.{{ model.name }}Vector.Vector,
+        vector_column: str,
+        top_k: int,
+        metric: SearchMetric,
+    ) -> list[_NNPrismaModelT]:
+        table_name = self._model.__name__
+        all_annotations = {}
+        for cls in inspect.getmro(self._model):
+            if hasattr(cls, "__annotations__"):
+                all_annotations.update(cls.__annotations__)
+
+        columns = [
+            name
+            for name, field in all_annotations.items()
+            if not is_optional(field)
+            and "__prisma_model__" not in name
+            and "model_config" not in name
+        ]
+        query, values = queries.QueryBuilder.build_nn_query(
+            table_name, columns, query_vec, vector_column, top_k, metric
+        )
+        values = [
+            str(value) if isinstance(value, uuid.UUID) else value for value in values
+        ]
+        conn = connect(self._client._default_datasource["url"])
+        query_str = query.as_string(conn)
+        resp = await self._client.query_raw(
+            query_str, *values, model=self._vector_model
+        )
+
+        return [model_parse(self._nn_model, item) for item in resp]
+{% endfor %}

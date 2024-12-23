@@ -1,0 +1,24 @@
+from typing import Optional
+
+from prisma import models
+
+from . import vectors
+
+{% for model in datamodel.models %}
+class {{ model.name }}(models.{{ model.name }}):
+    vec: vectors.{{ model.name }}Vector.Vector
+
+
+class {{ model.name }}TV(models.{{ model.name }}):
+    vec: str
+
+
+class {{ model.name }}NNResult(models.{{ model.name }}):
+    vec: Optional[vectors.{{ model.name }}Vector.Vector]
+    distance: float
+
+
+class {{ model.name }}NNResultTV(models.{{ model.name }}):
+    vec: Optional[str]
+    distance: float
+{% endfor %}

@@ -27,5 +27,6 @@ Classifier: Operating System :: Microsoft :: Windows
 Requires-Python: >=3.8.0
 Description-Content-Type: text/markdown
 Requires-Dist: prisma>=0.15.0
+Requires-Dist: psycopg2>=2.9.1
 
 vector prisma

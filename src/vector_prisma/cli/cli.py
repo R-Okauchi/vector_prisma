@@ -22,14 +22,13 @@ def main(
     use_handler: bool = True,
     do_cleanup: bool = True,
 ) -> NoReturn:
-    print("Vector Prisma")
     if args is None:
         args = sys.argv
-    print(args)
 
     with setup_logging(use_handler), cleanup(do_cleanup):
         if args[1] == "generate":
-            Generator.invoke()
+            generator = Generator()
+            generator.invoke()
     raise SystemExit(0)
 
 

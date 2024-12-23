@@ -5,7 +5,7 @@ from annotated_types import Len
 from .vector_base import VectorBase
 
 {% for model in datamodel.models %}
-class {{ model.name }}EmbeddingVector(VectorBase):
+class {{ model.name }}Vector(VectorBase):
     {% for field in model.all_fields %}
         {%- if 'Unsupported' in field.type and 'vector' in field.type %}
             {%- set vector_dim = field.type | regex_search('vector\((\d+)\)') | first %}

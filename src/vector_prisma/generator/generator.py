@@ -21,15 +21,18 @@ DEFAULT_ENV = Environment(
 )
 
 
+def regex_search(value, pattern):
+    match = re.search(pattern, value)
+    return match.groups() if match else []
+
+
+DEFAULT_ENV.filters["regex_search"] = regex_search
+
+
 class Generator:
     def __init__(self):
         self.schema_path = Path(prisma.__file__).parent.joinpath("schema.prisma")
         self.env = DEFAULT_ENV
-
-    @staticmethod
-    def regex_search(value, pattern):
-        match = re.search(pattern, value)
-        return match.groups() if match else []
 
     def read_schema(self) -> str:
         with open(self.schema_path, "r", encoding="utf-8") as f:

@@ -136,6 +136,18 @@ class Generator:
         self.generate_files(dmmf_data)
         print("Files generated and saved")
 
+    def reset(self):
+        for file_path in GENERATE_FILES.values():
+            try:
+                if file_path.exists():
+                    os.remove(file_path)
+                    print(f"Deleted: {file_path}")
+                else:
+                    print(f"File not found: {file_path}")
+            except Exception as e:
+                print(f"Error deleting file: {file_path}")
+                print(e)
+
 
 if __name__ == "__main__":
     generator = Generator()

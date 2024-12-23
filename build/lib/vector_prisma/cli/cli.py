@@ -29,6 +29,9 @@ def main(
         if args[1] == "generate":
             generator = Generator()
             generator.invoke()
+        if args[1] == "reset":
+            generator = Generator()
+            generator.reset()
     raise SystemExit(0)
 
 

@@ -41,7 +41,7 @@ from vector_prisma.types import (
     UserEmbeddingUpsertInput,
 )
 
-from models.User_embedding import UserEmbeddingCreate
+from models.user_embedding import UserEmbeddingCreate
 
 async def create_user_embedding(
     prisma: VectorPrisma, embedding: UserEmbeddingCreate
